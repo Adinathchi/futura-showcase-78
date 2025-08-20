@@ -80,8 +80,38 @@ export const defaultPortfolioData: PortfolioData = {
   ]
 };
 
-// In a real app, this would connect to a backend
-let portfolioData = { ...defaultPortfolioData };
+// Storage key for localStorage
+const STORAGE_KEY = 'portfolio_data';
+
+// Load data from localStorage or use default
+const loadPortfolioData = (): PortfolioData => {
+  if (typeof window === 'undefined') return defaultPortfolioData;
+  
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (error) {
+      console.error('Error parsing stored portfolio data:', error);
+    }
+  }
+  return defaultPortfolioData;
+};
+
+// Save data to localStorage
+const savePortfolioData = (data: PortfolioData): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('portfolioDataChanged'));
+  } catch (error) {
+    console.error('Error saving portfolio data:', error);
+  }
+};
+
+let portfolioData = loadPortfolioData();
 
 export const getPortfolioData = (): PortfolioData => {
   return portfolioData;
@@ -89,4 +119,15 @@ export const getPortfolioData = (): PortfolioData => {
 
 export const updatePortfolioData = (newData: Partial<PortfolioData>): void => {
   portfolioData = { ...portfolioData, ...newData };
+  savePortfolioData(portfolioData);
+};
+
+// Helper function to convert file to base64
+export const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
 };

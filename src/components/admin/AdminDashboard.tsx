@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   User, 
@@ -10,7 +10,9 @@ import {
   Edit, 
   Trash2,
   Eye,
-  Upload
+  Upload,
+  FileText,
+  Image
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { getPortfolioData, updatePortfolioData } from '@/lib/portfolio-data';
+import { getPortfolioData, updatePortfolioData, fileToBase64 } from '@/lib/portfolio-data';
 import type { Project, Skill, Education, Certificate } from '@/types/portfolio';
 
 export default function AdminDashboard() {
@@ -27,6 +29,8 @@ export default function AdminDashboard() {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
     updatePortfolioData(portfolioData);
@@ -113,6 +117,88 @@ export default function AdminDashboard() {
       ...prev,
       skills: prev.skills.filter(s => s.id !== skillId)
     }));
+  };
+
+  const addEducation = () => {
+    const newEducation: Education = {
+      id: Date.now().toString(),
+      institution: 'New Institution',
+      degree: 'New Degree',
+      field: 'New Field',
+      startDate: '2020',
+      endDate: '2024',
+      description: ''
+    };
+    
+    setPortfolioData(prev => ({
+      ...prev,
+      education: [...prev.education, newEducation]
+    }));
+  };
+
+  const deleteEducation = (educationId: string) => {
+    setPortfolioData(prev => ({
+      ...prev,
+      education: prev.education.filter(e => e.id !== educationId)
+    }));
+  };
+
+  const addCertificate = () => {
+    const newCertificate: Certificate = {
+      id: Date.now().toString(),
+      name: 'New Certificate',
+      issuer: 'New Issuer',
+      date: '2024',
+      url: ''
+    };
+    
+    setPortfolioData(prev => ({
+      ...prev,
+      certificates: [...prev.certificates, newCertificate]
+    }));
+  };
+
+  const deleteCertificate = (certificateId: string) => {
+    setPortfolioData(prev => ({
+      ...prev,
+      certificates: prev.certificates.filter(c => c.id !== certificateId)
+    }));
+  };
+
+  const handleImageUpload = async (file: File) => {
+    if (!activeProject) return;
+    
+    try {
+      const base64Image = await fileToBase64(file);
+      updateProject({ ...activeProject, image: base64Image });
+      toast({
+        title: "Image uploaded!",
+        description: "Project image has been updated.",
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "Could not upload the image. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleResumeUpload = async (file: File) => {
+    try {
+      const base64Resume = await fileToBase64(file);
+      handlePersonalInfoChange('resumeUrl', base64Resume);
+      toast({
+        title: "Resume uploaded!",
+        description: "Your resume has been updated.",
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "Could not upload the resume. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -204,13 +290,32 @@ export default function AdminDashboard() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Resume URL</label>
-                <Input
-                  value={portfolioData.personalInfo.resumeUrl || ''}
-                  onChange={(e) => handlePersonalInfoChange('resumeUrl', e.target.value)}
-                  className="mt-1"
-                  placeholder="https://example.com/resume.pdf"
-                />
+                <label className="text-sm font-medium text-muted-foreground">Resume</label>
+                <div className="mt-1 space-y-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => resumeInputRef.current?.click()}
+                    className="w-full justify-start"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Resume File
+                  </Button>
+                  <input
+                    ref={resumeInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleResumeUpload(file);
+                    }}
+                    className="hidden"
+                  />
+                  <Input
+                    value={portfolioData.personalInfo.resumeUrl || ''}
+                    onChange={(e) => handlePersonalInfoChange('resumeUrl', e.target.value)}
+                    placeholder="Or enter resume URL manually"
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -306,6 +411,45 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div>
+                    <label className="text-sm font-medium text-muted-foreground">Project Image</label>
+                    <div className="mt-1 space-y-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full justify-start"
+                      >
+                        <Image className="w-4 h-4 mr-2" />
+                        Upload Image
+                      </Button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file);
+                        }}
+                        className="hidden"
+                      />
+                      <Input
+                        value={activeProject.image}
+                        onChange={(e) =>
+                          updateProject({ ...activeProject, image: e.target.value })
+                        }
+                        placeholder="Or enter image URL manually"
+                      />
+                      {activeProject.image && (
+                        <div className="mt-2">
+                          <img
+                            src={activeProject.image}
+                            alt="Project preview"
+                            className="w-full h-32 object-cover rounded-lg"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
                     <label className="text-sm font-medium text-muted-foreground">
                       Tech Stack (comma-separated)
                     </label>
@@ -320,27 +464,25 @@ export default function AdminDashboard() {
                       className="mt-1"
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Live URL</label>
-                      <Input
-                        value={activeProject.liveUrl || ''}
-                        onChange={(e) =>
-                          updateProject({ ...activeProject, liveUrl: e.target.value })
-                        }
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">GitHub URL</label>
-                      <Input
-                        value={activeProject.githubUrl || ''}
-                        onChange={(e) =>
-                          updateProject({ ...activeProject, githubUrl: e.target.value })
-                        }
-                        className="mt-1"
-                      />
-                    </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Live URL</label>
+                    <Input
+                      value={activeProject.liveUrl || ''}
+                      onChange={(e) =>
+                        updateProject({ ...activeProject, liveUrl: e.target.value })
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">GitHub URL</label>
+                    <Input
+                      value={activeProject.githubUrl || ''}
+                      onChange={(e) =>
+                        updateProject({ ...activeProject, githubUrl: e.target.value })
+                      }
+                      className="mt-1"
+                    />
                   </div>
                   <div className="flex items-center space-x-2">
                     <input
@@ -418,13 +560,26 @@ export default function AdminDashboard() {
           <div className="space-y-8">
             {/* Education */}
             <Card className="glass-strong">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-gradient-primary">Education</CardTitle>
+                <Button onClick={addEducation} size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Education
+                </Button>
               </CardHeader>
               <CardContent className="space-y-4">
                 {portfolioData.education.map((edu) => (
                   <div key={edu.id} className="p-4 border border-border rounded-lg space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteEducation(edu.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Input
                         value={edu.institution}
                         onChange={(e) => {
@@ -449,6 +604,44 @@ export default function AdminDashboard() {
                         }}
                         placeholder="Degree"
                       />
+                      <Input
+                        value={edu.field}
+                        onChange={(e) => {
+                          setPortfolioData(prev => ({
+                            ...prev,
+                            education: prev.education.map(ed =>
+                              ed.id === edu.id ? { ...ed, field: e.target.value } : ed
+                            )
+                          }));
+                        }}
+                        placeholder="Field of Study"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input
+                        value={edu.startDate}
+                        onChange={(e) => {
+                          setPortfolioData(prev => ({
+                            ...prev,
+                            education: prev.education.map(ed =>
+                              ed.id === edu.id ? { ...ed, startDate: e.target.value } : ed
+                            )
+                          }));
+                        }}
+                        placeholder="Start Date (e.g., 2020)"
+                      />
+                      <Input
+                        value={edu.endDate || ''}
+                        onChange={(e) => {
+                          setPortfolioData(prev => ({
+                            ...prev,
+                            education: prev.education.map(ed =>
+                              ed.id === edu.id ? { ...ed, endDate: e.target.value } : ed
+                            )
+                          }));
+                        }}
+                        placeholder="End Date (e.g., 2024) or leave empty if ongoing"
+                      />
                     </div>
                     <Textarea
                       value={edu.description || ''}
@@ -460,7 +653,7 @@ export default function AdminDashboard() {
                           )
                         }));
                       }}
-                      placeholder="Description"
+                      placeholder="Description (specialization, achievements, etc.)"
                       rows={2}
                     />
                   </div>
@@ -470,12 +663,25 @@ export default function AdminDashboard() {
 
             {/* Certificates */}
             <Card className="glass-strong">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-gradient-secondary">Certificates</CardTitle>
+                <Button onClick={addCertificate} size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Certificate
+                </Button>
               </CardHeader>
               <CardContent className="space-y-4">
                 {portfolioData.certificates.map((cert) => (
                   <div key={cert.id} className="p-4 border border-border rounded-lg space-y-3">
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteCertificate(cert.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Input
                         value={cert.name}
@@ -514,6 +720,18 @@ export default function AdminDashboard() {
                         placeholder="Date"
                       />
                     </div>
+                    <Input
+                      value={cert.url || ''}
+                      onChange={(e) => {
+                        setPortfolioData(prev => ({
+                          ...prev,
+                          certificates: prev.certificates.map(c =>
+                            c.id === cert.id ? { ...c, url: e.target.value } : c
+                          )
+                        }));
+                      }}
+                      placeholder="Certificate URL (optional)"
+                    />
                   </div>
                 ))}
               </CardContent>
