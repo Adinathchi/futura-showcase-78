@@ -56,7 +56,7 @@ export const defaultPortfolioData: PortfolioData = {
       id: "1",
       institution: "Tech University",
       degree: "Bachelor of Science",
-      field: "Computer Science",
+      field: "Information Science",
       startDate: "2020",
       endDate: "2024",
       description: "Specialized in AI and Machine Learning"
